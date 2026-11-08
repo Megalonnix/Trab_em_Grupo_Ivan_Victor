@@ -1,0 +1,399 @@
+/* ============================================================================
+   style.css
+   ----------------------------------------------------------------------------
+   Todo o visual da página. Não há lógica aqui — nenhum comportamento, nenhuma
+   animação de jogo. Apenas cores, tamanhos, espaçamentos e layout.
+
+   Estrutura:
+     1. Reset básico e tipografia
+     2. Cabeçalho
+     3. Área principal (grid de 2 colunas)
+     4. Coluna do jogo (canvas esquerdo)
+     5. Coluna de informação (painel + gráfico)
+     6. Painel de status
+     7. Botão "Exportar CSV"
+     8. Rodapé
+     9. Responsividade (telas menores)
+   ============================================================================ */
+
+
+/* ============================================================================
+   1. RESET BÁSICO E TIPOGRAFIA
+   ----------------------------------------------------------------------------
+   Remove margens e paddings padrão do navegador e define a fonte geral.
+   ============================================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box; /* padding e border contam dentro da largura */
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+               Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #f4f6f9;
+  color: #222;
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1, h2 {
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+h1 { font-size: 22px; }
+h2 { font-size: 15px; margin-bottom: 10px; text-transform: uppercase;
+     letter-spacing: 0.5px; color: #555; }
+
+
+/* ============================================================================
+   2. CABEÇALHO
+   ============================================================================ */
+
+.cabecalho {
+  background: #1a1a2e;
+  color: #fff;
+  padding: 16px 24px;
+  border-bottom: 3px solid #16213e;
+}
+
+.cabecalho h1 {
+  color: #fff;
+  font-size: 22px;
+}
+
+.subtitulo {
+  color: #b0b3c1;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+
+/* ============================================================================
+   3. ÁREA PRINCIPAL — GRID DE 2 COLUNAS
+   ----------------------------------------------------------------------------
+   Esquerda: canvas do jogo (800×600).
+   Direita:  painel + gráfico, empilhados verticalmente.
+
+   O grid usa "auto 1fr" na largura — a coluna do jogo ocupa o tamanho
+   natural do canvas, a coluna de info ocupa o restante.
+   ============================================================================ */
+
+.area-principal {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 20px;
+  padding: 20px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  align-items: start;
+}
+
+
+/* ============================================================================
+   4. COLUNA DO JOGO — CANVAS ESQUERDO
+   ============================================================================ */
+
+.coluna-jogo {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+#canvas-jogo {
+  display: block;
+  border: 3px solid #1a1a2e;
+  border-radius: 8px;
+  background: #87CEEB; /* mesmo azul do fundo desenhado no game.js */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  height: auto;
+}
+
+
+/* ============================================================================
+   5. COLUNA DE INFORMAÇÃO
+   ============================================================================ */
+
+.coluna-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 280px;
+}
+
+
+/* ============================================================================
+   6. PAINEL DE STATUS
+   ============================================================================ */
+
+.painel {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+}
+
+.linha-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px dashed #eef0f3;
+  font-size: 14px;
+}
+
+.linha-info:last-of-type {
+  border-bottom: none;
+}
+
+.rotulo {
+  color: #555;
+  font-weight: 500;
+}
+
+.valor {
+  font-weight: 700;
+  color: #1a1a2e;
+  font-variant-numeric: tabular-nums; /* números alinhados em coluna */
+}
+
+.valor-status {
+  color: #2E8B57;
+  font-size: 13px;
+}
+
+.valor-status.parado {
+  color: #c0392b;
+}
+
+
+/* ============================================================================
+   7. BOTÃO "EXPORTAR CSV"
+   ============================================================================ */
+
+.botao-exportar {
+  margin-top: 14px;
+  width: 100%;
+  padding: 10px 16px;
+  background: #1a1a2e;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+  letter-spacing: 0.3px;
+}
+
+.botao-exportar:hover {
+  background: #16213e;
+}
+
+.botao-exportar:active {
+  transform: scale(0.98);
+}
+
+
+/* ============================================================================
+   8. PAINEL DO GRÁFICO
+   ============================================================================ */
+
+.painel-grafico {
+  padding-bottom: 14px;
+}
+
+#canvas-grafico {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+
+/* ============================================================================
+   9. RODAPÉ
+   ============================================================================ */
+
+.rodape {
+  text-align: center;
+  padding: 14px 24px;
+  font-size: 12px;
+  color: #888;
+  border-top: 1px solid #e5e7eb;
+  background: #fafbfc;
+  margin-top: 20px;
+}
+
+
+/* ============================================================================
+   10. RESPONSIVIDADE
+   ----------------------------------------------------------------------------
+   Em telas com menos de 1200px, o canvas do jogo começa a ficar maior do que
+   o espaço disponível. A partir de 1100px, empilhamos as colunas
+   verticalmente (jogo em cima, info embaixo) para que nada seja cortado.
+   ============================================================================ */
+
+@media (max-width: 1150px) {
+  .area-principal {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .coluna-jogo {
+    justify-content: center;
+  }
+
+  #canvas-jogo {
+    width: 100%;
+    height: auto;
+  }
+
+  .coluna-info {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .coluna-info .painel {
+    flex: 1 1 300px;
+  }
+}
+
+@media (max-width: 640px) {
+  .cabecalho {
+    padding: 12px 16px;
+  }
+
+  .cabecalho h1 {
+    font-size: 18px;
+  }
+
+  .coluna-info {
+    flex-direction: column;
+  }
+
+  .linha-info {
+    font-size: 13px;
+  }
+}
+
+/* ============================================================================
+   11. BARRA DE CONTROLES
+   ----------------------------------------------------------------------------
+   Fica entre o cabeçalho e o jogo. Layout horizontal flexível:
+   em telas largas, todos os grupos cabem em uma linha;
+   em telas estreitas, os grupos quebram para linhas adicionais.
+   ============================================================================ */
+
+.barra-controles {
+  background: #fff;
+  padding: 12px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 24px;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.grupo-controle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grupo-controle label {
+  font-size: 13px;
+  color: #555;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* ---- Botões de velocidade ---- */
+.botao-velocidade {
+  padding: 6px 12px;
+  background: #f4f6f9;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #555;
+  transition: all 0.15s;
+  font-variant-numeric: tabular-nums;
+}
+
+.botao-velocidade:hover {
+  background: #e5e7eb;
+}
+
+.botao-velocidade.ativo {
+  background: #1a1a2e;
+  color: #fff;
+  border-color: #1a1a2e;
+}
+
+/* ---- Botões de ação (Salvar, Carregar, Demo, Reset) ---- */
+.barra-controles button:not(.botao-velocidade) {
+  padding: 7px 14px;
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.barra-controles button:not(.botao-velocidade):hover:not(:disabled) {
+  background: #f4f6f9;
+  border-color: #999;
+}
+
+.barra-controles button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---- Destaque para o modo demo (quando ativo) ---- */
+.valor-modo {
+  color: #1a1a2e;
+}
+
+.valor-modo.demo {
+  color: #d97706;
+  font-weight: 800;
+}
+
+/* ---- Responsividade: barra de controles em telas pequenas ---- */
+@media (max-width: 900px) {
+  .barra-controles {
+    padding: 10px 14px;
+    gap: 12px 16px;
+  }
+
+  .grupo-controle label {
+    font-size: 12px;
+  }
+
+  .botao-velocidade,
+  .barra-controles button:not(.botao-velocidade) {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}

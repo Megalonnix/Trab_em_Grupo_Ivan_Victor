@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flappy Bird — Algoritmo Genético</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ======================================================================
+       CABEÇALHO
+       ====================================================================== -->
+  <header class="cabecalho">
+    <h1>Flappy Bird — Algoritmo Genético</h1>
+    <p class="subtitulo">
+      Computação Evolucionária · Tema 3 · Projeto prático
+    </p>
+  </header>
+
+
+  <!-- ======================================================================
+       BARRA DE CONTROLES
+       Fica entre o cabeçalho e o jogo. Permite:
+         - Mudar a velocidade da simulação (1x, 5x, 20x, 100x)
+         - Salvar/carregar o "campeão" (melhor genoma) em arquivo .json
+         - Rodar o campeão em modo demonstração (1 pássaro só)
+         - Resetar tudo
+       Os IDs e classes são lidos pelo ui.js e main.js.
+       ====================================================================== -->
+  <section class="barra-controles">
+
+    <!-- --- Grupo 1: velocidade --- -->
+    <div class="grupo-controle">
+      <label>Velocidade:</label>
+      <button class="botao-velocidade ativo" data-velocidade="1">1×</button>
+      <button class="botao-velocidade" data-velocidade="5">5×</button>
+      <button class="botao-velocidade" data-velocidade="20">20×</button>
+      <button class="botao-velocidade" data-velocidade="100">100×</button>
+    </div>
+
+    <!-- --- Grupo 2: save/load --- -->
+    <div class="grupo-controle">
+      <button id="btn-salvar-campeao" title="Baixa o melhor genoma da última geração como .json">
+        💾 Salvar campeão
+      </button>
+      <button id="btn-carregar-campeao" title="Carrega um .json e oferece rodar em modo demo">
+        📂 Carregar campeão
+      </button>
+      <!-- input escondido: o botão acima aciona este input via JS -->
+      <input type="file" id="input-carregar-campeao" accept=".json" hidden>
+    </div>
+
+    <!-- --- Grupo 3: demo --- -->
+    <div class="grupo-controle">
+      <button id="btn-demo" disabled title="Carregue um campeão primeiro">
+        ▶ Rodar campeão
+      </button>
+      <button id="btn-parar-demo" disabled>
+        ⏹ Parar demo
+      </button>
+    </div>
+
+    <!-- --- Grupo 4: reset --- -->
+    <div class="grupo-controle">
+      <button id="btn-reset" title="Recomeça a simulação do zero">
+        🔄 Resetar tudo
+      </button>
+    </div>
+
+  </section>
+
+
+  <!-- ======================================================================
+       ÁREA PRINCIPAL — mesmo layout de antes (jogo + painel/gráfico)
+       ====================================================================== -->
+  <main class="area-principal">
+
+    <section class="coluna-jogo">
+      <canvas id="canvas-jogo" width="800" height="600">
+        Seu navegador não suporta canvas HTML5.
+      </canvas>
+    </section>
+
+    <section class="coluna-info">
+
+      <div class="painel">
+        <h2>Status da simulação</h2>
+
+        <div class="linha-info">
+          <span class="rotulo">Modo:</span>
+          <span class="valor valor-modo" id="info-modo">Evolução</span>
+        </div>
+
+        <div class="linha-info">
+          <span class="rotulo">Geração:</span>
+          <span class="valor" id="info-geracao">1</span>
+        </div>
+
+        <div class="linha-info">
+          <span class="rotulo">Pássaros vivos:</span>
+          <span class="valor" id="info-vivos">50</span>
+        </div>
+
+        <div class="linha-info">
+          <span class="rotulo">Melhor fitness:</span>
+          <span class="valor" id="info-melhor-fitness">0</span>
+        </div>
+
+        <div class="linha-info">
+          <span class="rotulo">Fitness média:</span>
+          <span class="valor" id="info-media-fitness">0</span>
+        </div>
+
+        <div class="linha-info">
+          <span class="rotulo">Melhor pássaro (canos):</span>
+          <span class="valor" id="info-melhor-canos">0</span>
+        </div>
+
+        <div class="linha-info">
+          <span class="rotulo">Status:</span>
+          <span class="valor valor-status" id="info-status">Rodando</span>
+        </div>
+
+        <button id="btn-exportar" class="botao-exportar">
+          Exportar histórico completo (CSV)
+        </button>
+      </div>
+
+      <div class="painel painel-grafico">
+        <h2>Convergência</h2>
+        <canvas id="canvas-grafico" width="400" height="240">
+          Seu navegador não suporta canvas HTML5.
+        </canvas>
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <footer class="rodape">
+    <p>
+      Trabalho em Grupo — Computação Evolucionária ·
+      Algoritmo Genético aplicado a Flappy Bird
+    </p>
+  </footer>
+
+
+  <!-- Ordem dos scripts: config → brain → game → evolution → ui → main -->
+  <script src="config.js"></script>
+  <script src="brain.js"></script>
+  <script src="game.js"></script>
+  <script src="evolution.js"></script>
+  <script src="ui.js"></script>
+  <script src="main.js"></script>
+
+</body>
+</html>
