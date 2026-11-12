@@ -1,305 +1,412 @@
-// ============================================================================
-// treinar.cpp — Treinador GA offline para o Flappy Bird
-// ----------------------------------------------------------------------------
-// Compila: g++ -O2 -std=c++17 treinar.cpp -o treinar
-// Roda:    ./treinar   (Windows: treinar.exe)
-//
-// Saída:   campeao.json  (mesmo formato que main.js carrega)
-//
-// CORREÇÃO APLICADA (v2):
-//   Cada pássaro enfrenta SUA PRÓPRIA sequência de canos, gerada
-//   individualmente. Isso elimina o overfitting em que o campeão só
-//   era bom na sequência fixa usada na avaliação.
-// ============================================================================
+// Treinador offline do Flappy Bird. Os parâmetros espelham config.js.
 #include <algorithm>
 #include <array>
-#include <cmath>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <stdexcept>
 #include <vector>
 using namespace std;
 
-// ---- Config (espelha config.js) ----
-constexpr int    LARGURA = 800, ALTURA = 600;
+constexpr int LARGURA = 800, ALTURA = 600;
 constexpr double GRAVIDADE = 0.4, V_SALTO = 7.0, V_MAX = 12.0;
-constexpr int    PASSARO_LARGURA = 26, PASSARO_ALTURA = 20, PASSARO_X = 120;
-constexpr int    CANO_LARGURA = 60, CANO_VAO = 200;
+constexpr int PASSARO_LARGURA = 26, PASSARO_ALTURA = 20, PASSARO_X = 120;
+constexpr int CANO_LARGURA = 60, CANO_VAO = 200;
 constexpr double CANO_VELOCIDADE = 3.5, CANO_ESPACAMENTO = 240;
-constexpr int    FITNESS_PESO_CANOS = 1000;
+constexpr int HORIZONTE_REACAO_FRAMES = 120;
+constexpr int FITNESS_PESO_CANOS = 1000;
 
-constexpr int    TAMANHO_POPULACAO = 60, MAX_GERACOES = 200;
-constexpr int    META_CANOS = 50, GERACOES_SEM_MELHORA = 60;
-constexpr int    ELITES = 2, TORNEIO_K = 3;
+constexpr int TAMANHO_POPULACAO = 80;
+constexpr int MAX_GERACOES = 1000;
+constexpr int META_CANOS = 100;
+constexpr int GERACOES_SEM_MELHORA = 200;
+constexpr int CENARIOS_TREINO = 32;
+constexpr int CENARIOS_VALIDACAO = 20;
+constexpr int MAX_FRAMES_POR_GERACAO = 30000;
+constexpr int ELITES = 2, TORNEIO_K = 3;
 constexpr double TAXA_CRUZAMENTO = 0.9, TAXA_MUTACAO = 0.1;
 constexpr double SIGMA_MUTACAO = 0.3, LIMITE_GENE = 5.0;
-constexpr int    TAMANHO_GENOMA = 6;
-
-// Segurança: se um pássaro ficar invencível, para o loop
-constexpr int    MAX_FRAMES_POR_GERACAO = 20000;
+constexpr int TAMANHO_GENOMA = 6;
+constexpr int CANOS_POR_CENARIO = 500;
+constexpr uint32_t SEMENTE_GA = 42;
+constexpr uint32_t SEMENTE_CENARIOS = 20261108;
 
 using Genoma = array<double, TAMANHO_GENOMA>;
-
-mt19937 rng(42);                              // semente fixa p/ reprodutibilidade
+mt19937 rng(SEMENTE_GA);
 uniform_real_distribution<double> U(0.0, 1.0);
-normal_distribution<double>       N01(0.0, 1.0);
+normal_distribution<double> N01(0.0, 1.0);
 
-// ---- Estruturas ----
-struct Cano { double x, yVao, yVaoSup, yVaoInf; int id; };
+struct Cano {
+  double x, yVao, yVaoSup, yVaoInf;
+  int id;
+};
 
 struct Passaro {
   Genoma genoma;
   double x = PASSARO_X;
-  double y, vy = 0, dist = 0, fitness = 0;
-  bool   vivo = true;
-  int    canos = 0;
-  int    ultimoCanoContado = -1;
-  Passaro(Genoma g, double y0) : genoma(g), y(y0) {}
+  double y, vy = 0, distancia = 0;
+  int canos = 0;
+  int ultimoCanoContado = -1;
+
+  Passaro(const Genoma& g, double yInicial) : genoma(g), y(yInicial) {}
 };
 
-// ---- Genoma ----
+struct Cenario {
+  double yInicial;
+  vector<double> vaos;
+};
+
+struct ResultadoEpisodio {
+  int canos;
+  double distancia;
+};
+
+struct Individuo {
+  Genoma genoma;
+  double fitness = 0;
+  double mediaCanos = 0;
+  double mediaDistancia = 0;
+  int minimoCanos = 0;
+};
+
 Genoma genomaAleatorio() {
-  Genoma g;
-  for (auto& v : g) v = U(rng) * 2 - 1;
-  return g;
+  Genoma genoma;
+  for (double& gene : genoma) gene = U(rng) * 2 - 1;
+  return genoma;
 }
 
-// ---- Cérebro (seções B.2–B.5) ----
-bool decidir(const Genoma& g, double y, double vy, double dx, double yVao) {
-  double x1 = y / ALTURA;
-  double x2 = (vy + V_MAX) / (2 * V_MAX);
-  double x3 = dx / LARGURA;
-  double x4 = yVao / ALTURA;
-  double x5 = (y - yVao + ALTURA) / (2 * ALTURA);
-  double z  = g[0]*x1 + g[1]*x2 + g[2]*x3 + g[3]*x4 + g[4]*x5 + g[5];
+double limitar(double valor, double minimo, double maximo) {
+  return max(minimo, min(maximo, valor));
+}
+
+vector<Cenario> criarCenarios(int quantidade, uint32_t semente) {
+  mt19937 gerador(semente);
+  uniform_real_distribution<double> uniforme(0.0, 1.0);
+  vector<Cenario> cenarios;
+  cenarios.reserve(quantidade);
+
+  const double margem = 40;
+  const double yMin = CANO_VAO / 2.0 + margem;
+  const double yMax = ALTURA - CANO_VAO / 2.0 - margem;
+
+  for (int i = 0; i < quantidade; i++) {
+    Cenario cenario;
+    cenario.yInicial = 100 + uniforme(gerador) * (ALTURA - 200);
+    cenario.vaos.reserve(CANOS_POR_CENARIO);
+    for (int j = 0; j < CANOS_POR_CENARIO; j++) {
+      cenario.vaos.push_back(yMin + uniforme(gerador) * (yMax - yMin));
+    }
+    cenarios.push_back(move(cenario));
+  }
+  return cenarios;
+}
+
+Cano criarCano(double x, int id, const Cenario& cenario) {
+  if (id < 0 || id >= static_cast<int>(cenario.vaos.size())) {
+    throw out_of_range("A sequência do cenário não contém canos suficientes.");
+  }
+  const double yVao = cenario.vaos[id];
+  const double meio = CANO_VAO / 2.0;
+  return {x, yVao, yVao - meio, yVao + meio, id};
+}
+
+pair<double, double> perceber(const Passaro& passaro,
+                              const vector<Cano>& canos) {
+  for (const Cano& cano : canos) {
+    if (cano.x + CANO_LARGURA > passaro.x) {
+      const double distanciaBorda =
+          cano.x - (passaro.x + PASSARO_LARGURA);
+      return {distanciaBorda, cano.yVao};
+    }
+  }
+  return {static_cast<double>(LARGURA), ALTURA / 2.0};
+}
+
+bool decidir(const Genoma& genoma, const Passaro& passaro,
+             double dx, double yVao) {
+  const double x1 = passaro.y / ALTURA;
+  const double x2 = limitar(passaro.vy / V_MAX, -1.0, 1.0);
+  const double x3 = limitar(
+      dx / (CANO_VELOCIDADE * HORIZONTE_REACAO_FRAMES), -1.0, 1.0);
+  const double x4 = yVao / ALTURA;
+  const double x5 = limitar(
+      (passaro.y + PASSARO_ALTURA / 2.0 - yVao) / (ALTURA / 2.0),
+      -1.0, 1.0);
+  const double z = genoma[0] * x1 + genoma[1] * x2 + genoma[2] * x3 +
+                   genoma[3] * x4 + genoma[4] * x5 + genoma[5];
   return 1.0 / (1.0 + exp(-z)) > 0.5;
 }
 
-// ---- Canos ----
-Cano criarCano(double x, int id) {
-  double meio = CANO_VAO / 2.0;
-  double margem = 40;
-  double yMin = meio + margem, yMax = ALTURA - meio - margem;
-  double yVao = yMin + U(rng) * (yMax - yMin);
-  return { x, yVao, yVao - meio, yVao + meio, id };
+void aplicarFisica(Passaro& passaro, bool pulou) {
+  passaro.vy += GRAVIDADE;
+  if (pulou) passaro.vy = -V_SALTO;
+  passaro.y += passaro.vy;
+  passaro.distancia += CANO_VELOCIDADE;
 }
 
-// ---- Física (seção C.2) ----
-void aplicarFisica(Passaro& p, bool pulou) {
-  p.vy += GRAVIDADE;
-  if (pulou) p.vy = -V_SALTO;
-  p.y += p.vy;
-  p.dist += CANO_VELOCIDADE;
+bool colidiuTetoChao(const Passaro& passaro) {
+  return passaro.y < 0 || passaro.y + PASSARO_ALTURA > ALTURA;
 }
 
-bool colidiuTetoChao(const Passaro& p) {
-  return p.y < 0 || p.y + PASSARO_ALTURA > ALTURA;
+bool colidiuCano(const Passaro& passaro, const Cano& cano) {
+  const bool sobrepoeX =
+      passaro.x + PASSARO_LARGURA > cano.x &&
+      passaro.x < cano.x + CANO_LARGURA;
+  if (!sobrepoeX) return false;
+  return passaro.y < cano.yVaoSup ||
+         passaro.y + PASSARO_ALTURA > cano.yVaoInf;
 }
 
-bool colidiuCano(const Passaro& p, const Cano& c) {
-  bool sx = (p.x + PASSARO_LARGURA > c.x) && (p.x < c.x + CANO_LARGURA);
-  if (!sx) return false;
-  return p.y < c.yVaoSup || (p.y + PASSARO_ALTURA) > c.yVaoInf;
-}
+ResultadoEpisodio avaliarEpisodio(const Genoma& genoma,
+                                   const Cenario& cenario) {
+  Passaro passaro(genoma, cenario.yInicial);
+  vector<Cano> canos{criarCano(LARGURA, 0, cenario)};
+  int proximoCanoId = 1;
 
-double distancia(const Passaro& p, const vector<Cano>& cs) {
-  double best = LARGURA;
-  for (auto& c : cs) if (c.x + CANO_LARGURA > p.x) {
-    double d = c.x - p.x;
-    if (d >= 0 && d < best) best = d;
-  }
-  return best;
-}
+  // Keep evaluating beyond the success target so fitness can reward robustness.
+  for (int frame = 0; frame < MAX_FRAMES_POR_GERACAO; frame++) {
+    const auto [dx, yVao] = perceber(passaro, canos);
+    aplicarFisica(passaro, decidir(genoma, passaro, dx, yVao));
+    if (colidiuTetoChao(passaro)) break;
 
-double alturaVao(const Passaro& p, const vector<Cano>& cs) {
-  double best = LARGURA, yv = ALTURA / 2.0;
-  for (auto& c : cs) if (c.x + CANO_LARGURA > p.x) {
-    double d = c.x - p.x;
-    if (d >= 0 && d < best) { best = d; yv = c.yVao; }
-  }
-  return yv;
-}
-
-// ============================================================================
-// AVALIAÇÃO — v2: cada pássaro enfrenta SUA PRÓPRIA sequência de canos
-// ----------------------------------------------------------------------------
-// Antes: um único array de canos era compartilhado entre os 60 pássaros,
-//        o que fazia o campeão memorizar aquela sequência específica.
-// Agora: cada pássaro simula do zero, com canos sorteados individualmente.
-//        Isso força o campeão a ser bom em QUALQUER sequência.
-// ============================================================================
-void avaliarPassaro(Passaro& p) {
-  vector<Cano> canos;
-  int canoIdSeq = 0;
-  canos.push_back(criarCano(LARGURA, canoIdSeq++));
-
-  for (int f = 0; f < MAX_FRAMES_POR_GERACAO; f++) {
-    if (p.canos >= META_CANOS) { p.vivo = false; return; }
-
-    bool pulou = decidir(p.genoma, p.y, p.vy,
-                         distancia(p, canos), alturaVao(p, canos));
-    aplicarFisica(p, pulou);
-
-    if (colidiuTetoChao(p)) { p.vivo = false; return; }
-
-    for (auto& c : canos) c.x -= CANO_VELOCIDADE;
+    for (Cano& cano : canos) cano.x -= CANO_VELOCIDADE;
     canos.erase(remove_if(canos.begin(), canos.end(),
-                [](const Cano& c){ return c.x + CANO_LARGURA < 0; }),
+                          [](const Cano& cano) {
+                            return cano.x + CANO_LARGURA < 0;
+                          }),
                 canos.end());
-    if (canos.empty()) canos.push_back(criarCano(LARGURA, canoIdSeq++));
-    else if (canos.back().x <= LARGURA - CANO_ESPACAMENTO)
-      canos.push_back(criarCano(LARGURA, canoIdSeq++));
 
-    for (auto& c : canos)
-      if (colidiuCano(p, c)) { p.vivo = false; return; }
+    if (canos.empty()) {
+      canos.push_back(criarCano(LARGURA, proximoCanoId++, cenario));
+    } else if (canos.back().x <= LARGURA - CANO_ESPACAMENTO) {
+      canos.push_back(criarCano(LARGURA, proximoCanoId++, cenario));
+    }
 
-    for (auto& c : canos)
-      if (c.x + CANO_LARGURA < p.x && c.id > p.ultimoCanoContado) {
-        p.canos++;
-        p.ultimoCanoContado = c.id;
+    bool colidiu = false;
+    for (const Cano& cano : canos) {
+      if (colidiuCano(passaro, cano)) {
+        colidiu = true;
+        break;
       }
+    }
+    if (colidiu) break;
+
+    for (const Cano& cano : canos) {
+      if (cano.x + CANO_LARGURA < passaro.x &&
+          cano.id > passaro.ultimoCanoContado) {
+        passaro.canos++;
+        passaro.ultimoCanoContado = cano.id;
+      }
+    }
   }
+  return {passaro.canos, passaro.distancia};
 }
 
-void avaliarGeracao(vector<Passaro>& pop) {
-  for (auto& p : pop) avaliarPassaro(p);
+Individuo avaliarGenoma(const Genoma& genoma,
+                        const vector<Cenario>& cenarios) {
+  Individuo individuo;
+  individuo.genoma = genoma;
+  individuo.minimoCanos = META_CANOS;
+  double somaFitness = 0;
+
+  // Every genome uses the same scenario set for a fair population comparison.
+  for (const Cenario& cenario : cenarios) {
+    const ResultadoEpisodio resultado = avaliarEpisodio(genoma, cenario);
+    individuo.mediaCanos += resultado.canos;
+    individuo.mediaDistancia += resultado.distancia;
+    individuo.minimoCanos = min(individuo.minimoCanos, resultado.canos);
+    somaFitness += FITNESS_PESO_CANOS * resultado.canos + resultado.distancia;
+  }
+
+  const double quantidade = static_cast<double>(cenarios.size());
+  individuo.mediaCanos /= quantidade;
+  individuo.mediaDistancia /= quantidade;
+  individuo.fitness = somaFitness / quantidade;
+  return individuo;
 }
 
-// ---- GA (seções E, F, G) ----
-int torneio(const vector<int>& ordem, const vector<Passaro>& pop) {
-  int venc = -1;
+int torneio(const vector<int>& ordem, const vector<Individuo>& populacao) {
+  int vencedor = -1;
   for (int i = 0; i < TORNEIO_K; i++) {
-    int idx = ordem[(int)(U(rng) * ordem.size())];
-    if (venc == -1 || pop[idx].fitness > pop[venc].fitness) venc = idx;
+    const int indice = ordem[static_cast<int>(U(rng) * ordem.size())];
+    if (vencedor == -1 ||
+        populacao[indice].fitness > populacao[vencedor].fitness) {
+      vencedor = indice;
+    }
   }
-  return venc;
+  return vencedor;
 }
 
-Genoma cruzarUniforme(const Genoma& a, const Genoma& b) {
-  Genoma f;
-  for (int j = 0; j < TAMANHO_GENOMA; j++) f[j] = (U(rng) < 0.5) ? a[j] : b[j];
-  return f;
+Genoma cruzarUniforme(const Genoma& paiA, const Genoma& paiB) {
+  Genoma filho;
+  for (int i = 0; i < TAMANHO_GENOMA; i++) {
+    filho[i] = U(rng) < 0.5 ? paiA[i] : paiB[i];
+  }
+  return filho;
 }
 
-void mutar(Genoma& g) {
-  for (auto& v : g) {
-    if (U(rng) < TAXA_MUTACAO) v += N01(rng) * SIGMA_MUTACAO;
-    v = max(-LIMITE_GENE, min(LIMITE_GENE, v));
+void mutar(Genoma& genoma) {
+  for (double& gene : genoma) {
+    if (U(rng) < TAXA_MUTACAO) gene += N01(rng) * SIGMA_MUTACAO;
+    gene = limitar(gene, -LIMITE_GENE, LIMITE_GENE);
   }
 }
 
-vector<Passaro> novaGeracao(const vector<Passaro>& pop) {
-  vector<int> ordem(pop.size());
+vector<Genoma> novaGeracao(const vector<Individuo>& populacao) {
+  vector<int> ordem(populacao.size());
   iota(ordem.begin(), ordem.end(), 0);
   sort(ordem.begin(), ordem.end(),
-       [&](int a, int b){ return pop[a].fitness > pop[b].fitness; });
+       [&](int a, int b) {
+         return populacao[a].fitness > populacao[b].fitness;
+       });
 
-  vector<Passaro> nova;
-  for (int i = 0; i < ELITES && i < (int)ordem.size(); i++)
-    nova.emplace_back(pop[ordem[i]].genoma, 100 + U(rng)*(ALTURA-200));
+  vector<Genoma> nova;
+  nova.reserve(TAMANHO_POPULACAO);
+  for (int i = 0; i < ELITES && i < static_cast<int>(ordem.size()); i++) {
+    nova.push_back(populacao[ordem[i]].genoma);
+  }
 
-  while ((int)nova.size() < TAMANHO_POPULACAO) {
-    int ia = torneio(ordem, pop), ib = torneio(ordem, pop);
-    Genoma filho = (U(rng) < TAXA_CRUZAMENTO)
-                     ? cruzarUniforme(pop[ia].genoma, pop[ib].genoma)
-                     : pop[ia].genoma;
+  while (static_cast<int>(nova.size()) < TAMANHO_POPULACAO) {
+    const int ia = torneio(ordem, populacao);
+    const int ib = torneio(ordem, populacao);
+    Genoma filho = U(rng) < TAXA_CRUZAMENTO
+                       ? cruzarUniforme(populacao[ia].genoma,
+                                        populacao[ib].genoma)
+                       : populacao[ia].genoma;
     mutar(filho);
-    nova.emplace_back(filho, 100 + U(rng)*(ALTURA-200));
+    nova.push_back(filho);
   }
   return nova;
 }
 
-void salvarCampeao(const Genoma& g, double fit, int ger) {
-  ofstream f("campeao.json");
-  f << "{\n  \"formato\": \"flappy-ga-campeao-v1\",\n";
-  f << "  \"data\": \"treinado em C++\",\n  \"genoma\": [";
+void salvarCampeao(const Individuo& campeao, int geracao,
+                   int cenariosValidacao) {
+  ofstream arquivo("campeao.json");
+  if (!arquivo) throw runtime_error("Não foi possível criar campeao.json.");
+  arquivo << "{\n"
+          << "  \"formato\": \"flappy-ga-campeao-v2\",\n"
+          << "  \"data\": \"treinado em C++\",\n"
+          << "  \"genoma\": [";
   for (int i = 0; i < TAMANHO_GENOMA; i++) {
-    if (i) f << ", ";
-    f << fixed << setprecision(6) << g[i];
+    if (i) arquivo << ", ";
+    arquivo << fixed << setprecision(6) << campeao.genoma[i];
   }
-  f << "],\n  \"fitness\": " << (int)fit << ",\n";
-  f << "  \"geracao\": " << ger << "\n}\n";
+  arquivo << "],\n"
+          << "  \"fitness\": " << static_cast<int>(campeao.fitness) << ",\n"
+          << "  \"geracao\": " << geracao << ",\n"
+          << "  \"canosMinimosValidacao\": " << campeao.minimoCanos << ",\n"
+          << "  \"mediaCanosValidacao\": " << fixed << setprecision(2)
+          << campeao.mediaCanos << ",\n"
+          << "  \"cenariosValidacao\": " << cenariosValidacao << ",\n"
+          << "  \"meta100Atingida\": "
+          << (campeao.minimoCanos >= META_CANOS ? "true" : "false") << "\n"
+          << "}\n";
 }
 
-// ---- Main ----
 int main() {
-  cout << "=== GA Flappy Bird — treino C++ (v2, sem overfitting) ===\n";
-  vector<Passaro> pop;
-  for (int i = 0; i < TAMANHO_POPULACAO; i++)
-    pop.emplace_back(genomaAleatorio(), 100 + U(rng)*(ALTURA-200));
+  try {
+    const vector<Cenario> cenariosTreino =
+        criarCenarios(CENARIOS_TREINO, SEMENTE_CENARIOS);
+    const vector<Cenario> cenariosValidacao =
+        criarCenarios(CENARIOS_VALIDACAO, SEMENTE_CENARIOS + 1);
 
-  int gerSemMelhora = 0;
-  double melhorGlobal = 0;
-  int melhorCanosGlobal = 0;
-  Genoma genomaGlobal{};
-  int geracaoGlobal = 0;
+    cout << "=== GA Flappy Bird — treino robusto ===\n"
+         << "População: " << TAMANHO_POPULACAO
+         << " | Cenários comuns por genoma: " << CENARIOS_TREINO
+         << " | Validação independente: " << CENARIOS_VALIDACAO
+         << " | Meta: " << META_CANOS << " canos em todos os cenários\n";
 
-  for (int ger = 1; ger <= MAX_GERACOES; ger++) {
-    // Reset dos pássaros antes de avaliar
-    for (auto& p : pop) {
-      p.vivo = true;
-      p.vy = 0;
-      p.y = 100 + U(rng)*(ALTURA-200);
-      p.canos = 0;
-      p.dist = 0;
-      p.fitness = 0;
-      p.ultimoCanoContado = -1;
-    }
+    vector<Genoma> genomas(TAMANHO_POPULACAO);
+    for (Genoma& genoma : genomas) genoma = genomaAleatorio();
 
-    avaliarGeracao(pop);
+    double melhorFitnessTreino = -1;
+    int geracoesSemMelhora = 0;
+    Individuo melhorValidado;
+    melhorValidado.minimoCanos = -1;
+    int geracaoMelhorValidado = 0;
+    bool metaAtingida = false;
 
-    for (auto& p : pop)
-      p.fitness = FITNESS_PESO_CANOS * p.canos + p.dist;
-
-    double melhor = 0, soma = 0;
-    int melhorCanos = 0;
-    Genoma bestG{};
-    for (auto& p : pop) {
-      soma += p.fitness;
-      if (p.fitness > melhor) {
-        melhor = p.fitness;
-        melhorCanos = p.canos;
-        bestG = p.genoma;
+    for (int geracao = 1; geracao <= MAX_GERACOES; geracao++) {
+      vector<Individuo> populacao;
+      populacao.reserve(genomas.size());
+      for (const Genoma& genoma : genomas) {
+        populacao.push_back(avaliarGenoma(genoma, cenariosTreino));
       }
+
+      const auto melhorAtual = max_element(
+          populacao.begin(), populacao.end(),
+          [](const Individuo& a, const Individuo& b) {
+            return a.fitness < b.fitness;
+          });
+
+      if (melhorAtual->fitness > melhorFitnessTreino) {
+        melhorFitnessTreino = melhorAtual->fitness;
+        geracoesSemMelhora = 0;
+
+        Individuo validado =
+            avaliarGenoma(melhorAtual->genoma, cenariosValidacao);
+        const bool melhorValidacao =
+            validado.minimoCanos > melhorValidado.minimoCanos ||
+            (validado.minimoCanos == melhorValidado.minimoCanos &&
+             validado.mediaCanos > melhorValidado.mediaCanos);
+        if (melhorValidacao) {
+          melhorValidado = move(validado);
+          geracaoMelhorValidado = geracao;
+        }
+        metaAtingida = melhorValidado.minimoCanos >= META_CANOS;
+      } else {
+        geracoesSemMelhora++;
+      }
+
+      if (geracao == 1 || geracao % 10 == 0 || metaAtingida) {
+        cout << "Ger " << setw(4) << geracao
+             << " | treino melhor=" << setw(8)
+             << static_cast<int>(melhorAtual->fitness)
+             << " | média canos=" << fixed << setprecision(1)
+             << melhorAtual->mediaCanos
+             << " | pior cenário=" << melhorAtual->minimoCanos
+             << " | melhor validação=" << melhorValidado.minimoCanos
+             << "/" << META_CANOS << "\n";
+      }
+
+      if (metaAtingida) break;
+      if (geracao >= MAX_GERACOES) break;
+      if (geracoesSemMelhora >= GERACOES_SEM_MELHORA) {
+        cout << "Parada por estagnação após " << geracoesSemMelhora
+             << " gerações sem melhora.\n";
+        break;
+      }
+      genomas = novaGeracao(populacao);
     }
 
-    cout << "Ger " << setw(3) << ger
-         << " | melhor=" << setw(8) << (int)melhor
-         << " | media="  << setw(8) << (int)(soma/pop.size())
-         << " | canos="  << melhorCanos << "\n";
+    if (melhorValidado.minimoCanos < 0) {
+      throw runtime_error("Nenhum candidato foi avaliado.");
+    }
 
-    if (melhor > melhorGlobal) {
-      melhorGlobal = melhor;
-      melhorCanosGlobal = melhorCanos;
-      genomaGlobal = bestG;
-      geracaoGlobal = ger;
-      gerSemMelhora = 0;
+    salvarCampeao(melhorValidado, geracaoMelhorValidado,
+                  CENARIOS_VALIDACAO);
+    cout << "\nMelhor candidato validado: mínimo="
+         << melhorValidado.minimoCanos << " canos; média="
+         << fixed << setprecision(1) << melhorValidado.mediaCanos
+         << " canos em " << CENARIOS_VALIDACAO << " cenários.\n";
+    if (metaAtingida) {
+      cout << "META ATINGIDA: o campeão sobreviveu a pelo menos "
+           << META_CANOS << " canos em todos os cenários de validação.\n";
     } else {
-      gerSemMelhora++;
+      cout << "META NÃO ATINGIDA. O JSON registra o melhor resultado medido; "
+              "não apresente este campeão como tendo atingido 100 canos.\n";
     }
-
-    if (melhorCanos >= META_CANOS) {
-      cout << ">> META de " << META_CANOS << " canos atingida!\n";
-      break;
+    cout << "Genoma:";
+    for (double gene : melhorValidado.genoma) {
+      cout << " " << fixed << setprecision(4) << gene;
     }
-    if (gerSemMelhora >= GERACOES_SEM_MELHORA) {
-      cout << ">> Estagnou (" << GERACOES_SEM_MELHORA << " gerações sem melhora).\n";
-      break;
-    }
-
-    pop = novaGeracao(pop);
+    cout << "\nCampeão salvo em campeao.json.\n";
+    return metaAtingida ? 0 : 2;
+  } catch (const exception& erro) {
+    cerr << "Erro no treinamento: " << erro.what() << "\n";
+    return 1;
   }
-
-  cout << "\nMelhor fitness: " << melhorGlobal
-       << " (canos=" << melhorCanosGlobal << ", geração=" << geracaoGlobal << ")\n";
-  cout << "Genoma: [";
-  for (int i = 0; i < TAMANHO_GENOMA; i++) {
-    if (i) cout << ", ";
-    cout << fixed << setprecision(4) << genomaGlobal[i];
-  }
-  cout << "]\nSalvando campeao.json...\n";
-  salvarCampeao(genomaGlobal, melhorGlobal, geracaoGlobal);
-  cout << "OK. Abra o index.html, clique em 'Carregar campeao' e escolha o arquivo.\n";
 }

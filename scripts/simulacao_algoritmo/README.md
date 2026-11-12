@@ -2,8 +2,9 @@
 
 Este é o **projeto prático** do Trabalho em Grupo de Computação Evolucionária.
 Implementa, em HTML/CSS/JavaScript puro (sem frameworks, sem instalação), um
-clone simples de Flappy Bird no qual **a população de pássaros aprende a jogar
-sozinha** por meio de um Algoritmo Genético.
+clone simples de Flappy Bird com uma demonstração visual de algoritmo
+genético. A evolução no navegador serve para ilustrar o processo; o treino
+offline em C++ é o fluxo recomendado para obter e validar o campeão.
 
 A parte teórica (todas as fórmulas, deduções e exemplos numéricos) está no
 notebook `../explicacao_teorica/FASE0_MATEMATICA.ipynb`. Este README é sobre o
@@ -21,8 +22,10 @@ O projeto usa **três linguagens**, cada uma com uma responsabilidade clara:
 | **CSS** | Definir o **visual**: cores, tamanhos, posições | `style.css` |
 | **JavaScript (JS)** | Definir o **comportamento**: física do pássaro, decisões, algoritmo genético, atualização da tela | `*.js` |
 
-Todo o JS roda **dentro do navegador**. Não há servidor, não há `npm install`,
-não há build. Basta abrir o `index.html` no Chrome, Firefox ou Edge.
+Todo o JS roda **dentro do navegador**. Não há Web Worker, `npm install` ou
+build. A evolução no navegador é uma demonstração visual; para treinar e obter
+o campeão usado na apresentação, utilize o treinador C++ descrito em
+[`treino_cpp/README.md`](treino_cpp/README.md).
 
 ---
 
@@ -116,9 +119,11 @@ um experimento viraria caça ao tesouro. Aqui está tudo junto e comentado.
 - `genomaAleatorio()` — cria um vetor de 6 números em `[-1, 1]`.
 - `sigmoide(z)` — a função de ativação (fórmula da seção B.4 do notebook).
 - `decidir(genoma, estado)` — recebe um genoma e o estado do jogo
-  (`y`, `vy`, `dx`, `yVao`) e devolve `true` (pular) ou `false` (não pular).
-  Internamente: normaliza as 5 entradas, calcula `z`, aplica sigmoide,
-  compara com 0.5.
+  (`y`, `vy`, distância assinada até a borda do cano e `yVao`) e devolve
+  `true` (pular) ou `false` (não pular). Internamente, calcula cinco entradas
+  normalizadas: altura, velocidade vertical, tempo assinado até o cano,
+  altura do vão e posição vertical relativa ao centro do vão. Em seguida,
+  calcula `z`, aplica sigmoide e compara com 0.5.
 
 **O que NÃO faz:** não move o pássaro, não gera canos, não calcula fitness. Só
 **decide**.
@@ -180,8 +185,8 @@ geração).
   fitness média, número de vivos, etc.
 - `desenharGrafico(historico)` — desenha no segundo canvas a curva de melhor
   fitness e fitness média ao longo das gerações.
-- `exportarCSV(historico)` — gera um arquivo `.csv` com uma linha por
-  indivíduo por geração e dispara o download.
+- `exportarCSV(historico)` — gera um arquivo `.csv` com uma linha por geração
+  (melhor indivíduo, fitness média e genoma campeão) e dispara o download.
 - `desenharCenario(ctx, passaros, canos)` — desenha o fundo, os canos e os
   pássaros no canvas principal.
 
@@ -192,23 +197,26 @@ geração).
 
 ---
 
-### 3.8 `main.js` — orquestrador
+### 3.8 `main.js` — orquestrador da demonstração
 
 **O que é:** o "maestro". Liga todos os módulos e roda o loop.
 
 **O que faz:**
 - Inicializa a população inicial (`N` genomas aleatórios via
   `brain.genomaAleatorio`).
-- Roda o loop principal via `requestAnimationFrame`:
-  1. Para cada pássaro vivo, chama `brain.decidir` e aplica a física via
-     `game.js`.
-  2. Move canos, verifica colisões, marca pássaros mortos.
-  3. Chama `ui.desenharCenario`.
-  4. Se **todos** os pássaros morreram → chama
-     `evolution.construirNovaGeracao`, registra no histórico, chama
-     `ui.desenharGrafico` e `ui.atualizarPainel`, reseta o jogo para a nova
-     geração.
-  5. Verifica critérios de parada (meta de canos, `G` gerações, estagnação).
+- Roda a demonstração com `requestAnimationFrame`, sem Web Worker.
+- Avalia todos os indivíduos nos mesmos 32 cenários e usa uma única sequência
+  comum de canos em cada cenário. A população é mostrada simultaneamente: cada
+  pássaro tem seu próprio estado e genoma, mas observa o mesmo mundo durante
+  aquele episódio. Os que colidem ficam visíveis em cinza até o próximo
+  cenário. A fitness é a média dos cenários; a meta de 100 canos exige
+  atingir pelo menos 100 em cada cenário de treino.
+- Ao terminar a geração, chama `evolution.construirNovaGeracao`, registra o
+  histórico e verifica os limites de gerações e estagnação. A meta da versão
+  JS é verificada nos 32 cenários de treino; diferentemente do C++, ela não
+  executa a validação independente em 20 cenários.
+- A demonstração é limitada pelo navegador; ela serve para visualizar os
+  conceitos, não para substituir o treinamento offline.
 
 **O que NÃO faz:** não implementa física, não implementa GA, não desenha. Só
 **coordena**.
@@ -219,9 +227,24 @@ geração).
 
 ## 4. Como executar
 
-1. Abra a pasta `simulacao_algoritmo/`.
-2. Dê **duplo clique** em `index.html`.
-3. O jogo começa automaticamente no navegador.
+1. Abra `index.html` no Chrome, Firefox ou Edge. Como não há mais Web Worker,
+   o arquivo pode ser aberto diretamente.
+2. Para evitar restrições locais do navegador, também é possível iniciar um
+   servidor na pasta `simulacao_algoritmo/`:
+
+   ```sh
+   python -m http.server 8000
+   ```
+
+   Acesse `http://localhost:8000/`.
+3. A evolução demonstrativa começa automaticamente. Os pássaros da população
+   percorrem juntos o mesmo cenário e a mesma sequência de canos. Os botões de
+   velocidade controlam a quantidade de passos tentada por quadro, limitada
+   para manter a interface responsiva.
+
+Para treinar um campeão para a demonstração, siga as instruções em
+[`treino_cpp/README.md`](treino_cpp/README.md), depois carregue o JSON no botão
+**"Carregar campeão"** e clique em **"Rodar campeão"**.
 
 Não precisa de servidor, `npm`, `pip`, nem nada. Funciona offline.
 
@@ -233,15 +256,49 @@ Não precisa de servidor, `npm`, `pip`, nem nada. Funciona offline.
 
 Ao rodar o `index.html`, você verá três regiões na tela:
 
-- **Canvas grande (esquerda):** os pássaros jogando em tempo real. Pássaros
-  mortos ficam acinzentados; os vivos, coloridos.
-- **Painel (direita superior):** geração atual, melhor fitness da geração,
-  fitness média, número de vivos, canos do melhor pássaro.
+- **Canvas grande (esquerda):** todos os pássaros da população são desenhados
+  com transparência no mesmo cenário e seguem a mesma sequência de canos.
+  Pássaros cinza já morreram naquele cenário; a população reinicia junta no
+  próximo. Isso torna visível a comparação entre genomas sob as mesmas
+  condições.
+- **Painel (direita superior):** geração atual, melhor fitness global,
+  número de pássaros vivos e canos do melhor pássaro.
 - **Canvas do gráfico (direita inferior):** curva de convergência — a linha
   verde é o melhor fitness por geração, a azul é a média.
 
-Depois de **~20 a 40 gerações**, você verá um pássaro ultrapassar 50 canos com
-facilidade. Isso indica que o GA convergiu.
+O tempo de convergência depende dos números aleatórios e do navegador. A
+demonstração avalia 32 cenários comuns, mas não executa a validação de 20
+cenários do C++; use o programa C++ para treinar e confirmar a meta de 100
+canos.
+
+## Roteiro para treinar em C++ e apresentar o campeão
+
+1. Abra um PowerShell na raiz do repositório e entre na pasta do treinador:
+
+   ```powershell
+   Set-Location scripts\simulacao_algoritmo\treino_cpp
+   ```
+
+2. Compile o fonte com GCC/MinGW e execute o treinamento:
+
+   ```powershell
+   g++ -O2 -std=c++17 treinar.cpp -o treinar.exe
+   .\treinar.exe
+   ```
+
+   O processo roda offline no terminal e cria ou substitui
+   `campeao.json`. Para confirmar que o campeão atingiu a meta, confira se o
+   terminal informa **META ATINGIDA**; caso contrário, ele é apenas o melhor
+   resultado encontrado, sem aprovação nos 20 cenários de validação.
+
+3. Abra `index.html` no navegador. Clique em **Carregar campeão**, selecione
+   `treino_cpp\campeao.json` e clique em **Rodar campeão**. O navegador roda o
+   genoma do arquivo; não é necessário treinar de novo no browser.
+
+Na palestra, deixe a simulação visual da população como ilustração e use
+**Rodar campeão** para mostrar o indivíduo treinado. A versão JS não importa o
+histórico/população produzidos pelo C++; apenas executa o genoma campeão
+exportado.
 
 ---
 
@@ -249,13 +306,17 @@ facilidade. Isso indica que o GA convergiu.
 
 Todos os parâmetros estão em `config.js`, comentados. Exemplos:
 
-- **Quer que o jogo fique mais fácil?** Reduza `a` (gravidade) ou aumente
-  `vSalto` (velocidade do pulo).
-- **Quer uma população maior?** Aumente `N` (ex.: de 50 para 100). Mais
+- **Quer que o jogo fique mais fácil?** Reduza `GRAVIDADE` ou aumente
+  `V_SALTO`.
+- **Quer uma população maior?** Aumente `TAMANHO_POPULACAO` (ex.: de 60 para 100). Mais
   diversidade, mais lento.
-- **Quer mais exploração?** Aumente `pm` ou `sigma`.
-- **Quer menos exploração (refinar)?** Reduza `pm` ou `sigma`.
-- **Quer elitismo mais forte?** Aumente `E` (mas não mais que 10% de `N`).
+- **Quer mais exploração?** Aumente `TAXA_MUTACAO` ou `SIGMA_MUTACAO`.
+- **Quer menos exploração (refinar)?** Reduza `TAXA_MUTACAO` ou `SIGMA_MUTACAO`.
+- **Quer elitismo mais forte?** Aumente `ELITES` (mas não mais que 10% da
+  população).
+
+Se alterar parâmetros do algoritmo ou do jogo, atualize os valores
+correspondentes em `treino_cpp/treinar.cpp` também.
 
 ---
 
@@ -265,9 +326,9 @@ Clique no botão **"Exportar CSV"** no painel. Será baixado um arquivo
 `resultados.csv` com o seguinte formato:
 
 ```
-geracao,individuo,fitness,canos,distancia,w1,w2,w3,w4,w5,b
-1,0,3500,5,3000,0.42,-0.75,0.61,-0.14,0.88,0.05
-1,1,2800,4,2400,0.31,-0.62,0.55,-0.10,0.72,0.02
+geracao,melhor_fitness,media_fitness,melhor_canos,w1,w2,w3,w4,w5,b
+1,3500,2100,5,0.4200,-0.7500,0.6100,-0.1400,0.8800,0.0500
+2,4200,2600,7,0.3100,-0.6200,0.5500,-0.1000,0.7200,0.0200
 ...
 ```
 
@@ -317,4 +378,7 @@ O projeto segue **exatamente** o notebook `FASE0_MATEMATICA.ipynb`. Mapa:
 | H.3 Critérios de parada | `main.js` → `verificarParada()` |
 
 Se durante a arguição o professor perguntar "onde está a fórmula X?", você vai
-direto nessa tabela.
+direto nessa tabela. Os valores de treinamento em `config.js` são sincronizados
+com `treino_cpp/treinar.cpp`; mantenha-os iguais ao alterar o experimento. A
+versão v2 usa seis genes e novas fórmulas sensoriais; campeões v1 precisam ser
+treinados novamente.

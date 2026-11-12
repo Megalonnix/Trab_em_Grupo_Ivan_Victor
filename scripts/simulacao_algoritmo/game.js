@@ -50,6 +50,7 @@ class Passaro {
     // ---- Estado de jogo ----
     this.vivo = true;
     this.canosUltrapassados = 0;
+    this.ultimoCanoContado = -1;
     this.distanciaPercorrida = 0;
 
     // ---- Fitness (recalculada em atualizarFitness) ----

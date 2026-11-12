@@ -58,7 +58,7 @@ canvasJogo.height = CONFIG_JOGO.ALTURA;
 // DESENHO DO CENÁRIO (canvas do jogo)
 // ============================================================================
 
-function desenharCenario(passaros, canos) {
+function desenharCenario(passaros, canos, sobreporPopulacao = false) {
 
   // ---- 1. Fundo ----
   ctxJogo.fillStyle = '#87CEEB';
@@ -82,10 +82,10 @@ function desenharCenario(passaros, canos) {
 
   // ---- 3. Pássaros (mortos primeiro, vivos depois) ----
   for (const p of passaros) {
-    if (!p.vivo) desenharPassaro(p, true);
+    if (!p.vivo) desenharPassaro(p, true, sobreporPopulacao ? 0.2 : 1);
   }
   for (const p of passaros) {
-    if (p.vivo) desenharPassaro(p, false);
+    if (p.vivo) desenharPassaro(p, false, sobreporPopulacao ? 0.45 : 1);
   }
 
   // ---- 4. Chão ----
@@ -93,10 +93,11 @@ function desenharCenario(passaros, canos) {
   ctxJogo.fillRect(0, CONFIG_JOGO.ALTURA - 10, CONFIG_JOGO.LARGURA, 10);
 }
 
-function desenharPassaro(passaro, morto) {
+function desenharPassaro(passaro, morto, opacidade) {
   const largura = CONFIG_JOGO.PASSARO_LARGURA;
   const altura  = CONFIG_JOGO.PASSARO_ALTURA;
 
+  ctxJogo.globalAlpha = opacidade;
   if (morto) {
     ctxJogo.fillStyle = 'rgba(120, 120, 120, 0.35)';
   } else {
@@ -110,6 +111,7 @@ function desenharPassaro(passaro, morto) {
     ctxJogo.lineWidth = 1.5;
     ctxJogo.strokeRect(passaro.x, passaro.y, largura, altura);
   }
+  ctxJogo.globalAlpha = 1;
 }
 
 
@@ -343,7 +345,7 @@ function exportarCSV(historicoResumo) {
 
   for (const h of historicoResumo) {
     const g = h.melhorGenoma || [];
-    const genes = g.map(v => v.toFixed(4).replace('.', ',')).join(',');
+    const genes = g.map(v => v.toFixed(4)).join(',');
 
     linhas.push([
       h.geracao,

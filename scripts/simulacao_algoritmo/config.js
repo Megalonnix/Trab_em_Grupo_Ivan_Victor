@@ -4,12 +4,9 @@
 // Todos os parâmetros numéricos do projeto, em UM SÓ LUGAR.
 // Aqui NÃO existe lógica: nenhuma função, nenhum cálculo. Apenas constantes.
 //
-// Ajustes desta versão (Fase 2):
-//   - Gravidade menor → pássaro cai mais devagar → mais fácil sobreviver
-//   - Vão do cano maior → mais fácil de passar
-//   - Canos mais rápidos e mais próximos → chegam antes no pássaro
-//   - Torneio k maior → mais pressão seletiva → converge mais rápido
-//   - População um pouco maior → mais diversidade inicial
+// Os parâmetros de treinamento devem permanecer sincronizados com
+// treino_cpp/treinar.cpp. O treinador C++ é a referência para os campeões;
+// no navegador, os mesmos parâmetros são usados na demonstração visual.
 // ============================================================================
 
 
@@ -34,8 +31,11 @@ const CONFIG_JOGO = {
   CANO_VELOCIDADE:  3.5,   // era 2.5 → canos chegam mais cedo
   CANO_ESPACAMENTO: 240,   // era 300 → cano novo aparece antes
 
+  // ---- Percepção do agente ----
+  HORIZONTE_REACAO_FRAMES: 120,
+
   // ---- Fitness (seção D.2) ----
-  FITNESS_PESO_CANOS: 100,
+  FITNESS_PESO_CANOS: 1000,
 
 };
 
@@ -43,16 +43,19 @@ const CONFIG_JOGO = {
 const CONFIG_GA = {
 
   // ---- População e gerações ----
-  TAMANHO_POPULACAO: 60,   // era 50 → mais diversidade
-  MAX_GERACOES:     100,
-  META_CANOS:        50,
-  GERACOES_SEM_MELHORA: 20,
+  TAMANHO_POPULACAO: 80,
+  MAX_GERACOES:     1000,
+  META_CANOS:        100,
+  GERACOES_SEM_MELHORA: 200,
+  MAX_FRAMES_POR_GERACAO: 30000,
+  CENARIOS_TREINO: 32,
+  CENARIOS_VALIDACAO: 20,
 
   // ---- Elitismo (seção E.2) ----
   ELITES: 2,
 
   // ---- Seleção por torneio (seção E.3) ----
-  TORNEIO_K: 5,            // era 3 → pressão maior, converge mais rápido
+  TORNEIO_K: 3,
 
   // ---- Cruzamento (seção F.4) ----
   TAXA_CRUZAMENTO: 0.9,
@@ -68,12 +71,10 @@ const CONFIG_GA = {
 // ============================================================================
 // CONFIGURAÇÕES DO LOOP DE SIMULAÇÃO
 // ----------------------------------------------------------------------------
-// LIMITE_MS: quanto tempo, em milissegundos, o loop pode gastar fazendo
-// updates de física a cada frame visual. Serve como "freio de segurança":
-// em velocidade 100×, se os 100 updates demorarem mais que isso, o loop
-// para de fazer updates e só desenha, evitando travar o navegador.
+// LIMITE_MS: orçamento de atualização por quadro visual. Um limite curto
+// mantém a interface responsiva mesmo nas velocidades de demonstração altas.
 // ============================================================================
 
 const CONFIG_LOOP = {
-  LIMITE_MS: 12,
+  LIMITE_MS: 4,
 };
