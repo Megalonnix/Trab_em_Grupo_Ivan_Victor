@@ -1,4 +1,14 @@
-# Algoritmo Genético aplicado ao Flappy Bird
+# 📋 Temática Projeto & Membros do Grupo
+
+| Informação | Detalhes |
+|---|---|
+| **Membros do Grupo** | Ivan Guimarães **RM: 0051352421038** <br> Felipe Juca **RM: 0051352411031** |
+| **Disciplina** | Inteligência Computacional |
+| **Professor(a)** | Felipe Cannarozzo |
+| **Tema do Grupo** | Grupo 3 — Computação Evolucionária e Algoritmos Evolucionários: algoritmos genéticos, seleção, cruzamento, mutação e otimização. |
+
+# 💾 Projeto Aprezentado - Algoritmo Genético aplicado ao Flappy Bird
+
 
 Projeto do Grupo 3 — Computação Evolucionária. O repositório reúne uma
 explicação matemática do algoritmo, uma simulação visual no navegador e um
