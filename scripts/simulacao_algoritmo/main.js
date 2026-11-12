@@ -320,6 +320,7 @@ function finalizarGeracao() {
     atualizarPainel({
       modo: 'Evolução',
       geracao,
+      cenario: cenariosTreino.length + '/' + cenariosTreino.length,
       vivos: 0,
       melhorFitness: Math.round(melhor),
       mediaFitness: Math.round(media),
@@ -361,6 +362,7 @@ function atualizarPainelEvolucao() {
   atualizarPainel({
     modo: 'Evolução',
     geracao,
+    cenario: (indiceCenarioTreino + 1) + '/' + cenariosTreino.length,
     vivos,
     melhorFitness: Math.round(Math.max(melhorFitnessGlobal, melhorAtual)),
     mediaFitness: Math.round(mediaAtual),
@@ -378,6 +380,7 @@ function atualizarPainelDemo() {
   atualizarPainel({
     modo: 'Demo',
     geracao: '—',
+    cenario: '—',
     vivos: demoPassaro.vivo ? 1 : 0,
     melhorFitness: Math.round(demoPassaro.fitness),
     mediaFitness: '—',

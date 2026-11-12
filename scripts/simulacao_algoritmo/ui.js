@@ -28,6 +28,7 @@ const ctxGrafico    = canvasGrafico.getContext('2d');
 
 const elModo          = document.getElementById('info-modo');
 const elGeracao       = document.getElementById('info-geracao');
+const elCenario       = document.getElementById('info-cenario');
 const elVivos         = document.getElementById('info-vivos');
 const elMelhorFitness = document.getElementById('info-melhor-fitness');
 const elMediaFitness  = document.getElementById('info-media-fitness');
@@ -134,6 +135,7 @@ function atualizarPainel(info) {
   }
 
   elGeracao.textContent       = info.geracao;
+  elCenario.textContent       = info.cenario;
   elVivos.textContent         = info.vivos;
   elMelhorFitness.textContent = info.melhorFitness;
   elMediaFitness.textContent  = info.mediaFitness;

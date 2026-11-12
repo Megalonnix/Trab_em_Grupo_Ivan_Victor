@@ -262,7 +262,9 @@ Ao rodar o `index.html`, você verá três regiões na tela:
   próximo. Isso torna visível a comparação entre genomas sob as mesmas
   condições.
 - **Painel (direita superior):** geração atual, melhor fitness global,
-  número de pássaros vivos e canos do melhor pássaro.
+  cenário atual de treino, número de pássaros vivos e canos do melhor pássaro.
+  Uma geração só termina depois que a população conclui os 32 cenários; por
+  isso, o número da geração pode ficar igual enquanto o cenário avança.
 - **Canvas do gráfico (direita inferior):** curva de convergência — a linha
   verde é o melhor fitness por geração, a azul é a média.
 
